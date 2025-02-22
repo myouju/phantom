@@ -34,9 +34,33 @@ func run(pass *analysis.Pass) (any, error) {
 	inspect.Preorder(nodeFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
-			if len(n.Lhs) == len(n.Rhs) {
+			switch {
+			case len(n.Lhs) == len(n.Rhs):
 				for i := range len(n.Lhs) {
 					assignableTo(pass, n.Pos(), n.Rhs[i], n.Lhs[i])
+				}
+			case len(n.Rhs) == 1:
+				switch expr := n.Rhs[0].(type) {
+				case *ast.CallExpr:
+					signature, ok := pass.TypesInfo.TypeOf(expr.Fun).(*types.Signature)
+					if !ok {
+						return
+					}
+
+					if signature.Results().Len() == len(n.Lhs) {
+						for i := range len(n.Lhs) {
+							assignableTo(pass, n.Pos(), signature.Results().At(i), n.Lhs[i])
+						}
+					}
+				case *ast.IndexExpr:
+					tuple, _ := pass.TypesInfo.TypeOf(expr).(*types.Tuple)
+					if len(n.Lhs) == 2 && tuple.Len() == 2 {
+						assignableTo(pass, n.Pos(), tuple.At(0), n.Lhs[0])
+					}
+				case *ast.TypeAssertExpr:
+					if len(n.Lhs) == 2 {
+						assignableTo(pass, n.Pos(), expr.Type, n.Lhs[0])
+					}
 				}
 			}
 		case *ast.DeclStmt:
@@ -51,11 +75,27 @@ func run(pass *analysis.Pass) (any, error) {
 					continue
 				}
 
-				if len(valuespec.Names) == len(valuespec.Values) {
+				switch {
+				case len(valuespec.Names) == len(valuespec.Values):
 					for i := range len(valuespec.Names) {
 						assignableTo(pass, valuespec.Pos(), valuespec.Values[i], valuespec.Names[i])
 					}
+				case len(valuespec.Values) == 1:
+					switch expr := valuespec.Values[0].(type) {
+					case *ast.CallExpr:
+						signature, ok := pass.TypesInfo.TypeOf(expr.Fun).(*types.Signature)
+						if !ok {
+							return
+						}
+
+						if signature.Results().Len() == len(valuespec.Names) {
+							for i := range len(valuespec.Names) {
+								assignableTo(pass, n.Pos(), signature.Results().At(i), valuespec.Names[i])
+							}
+						}
+					}
 				}
+
 			}
 		case *ast.CallExpr:
 			signature, ok := pass.TypesInfo.TypeOf(n.Fun).(*types.Signature)
@@ -79,6 +119,8 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 	switch val := val.(type) {
 	case ast.Expr:
 		typ1 = pass.TypesInfo.TypeOf(val)
+	case types.Object:
+		typ1 = val.Type()
 	case types.Type:
 		typ1 = val
 	}
@@ -86,6 +128,8 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 	switch typ := typ.(type) {
 	case ast.Expr:
 		typ2 = pass.TypesInfo.TypeOf(typ)
+	case types.Object:
+		typ2 = typ.Type()
 	case types.Type:
 		typ2 = typ
 	}
