@@ -1,4 +1,4 @@
-module github.com/tenntenn/typeannotation
+module github.com/tenntenn/phantom
 
 go 1.24.0
 

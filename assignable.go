@@ -1,4 +1,4 @@
-package typeannotation
+package phantom
 
 import (
 	"go/ast"
@@ -10,10 +10,10 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-const doc = "typeannotation checks types with type param for type alias"
+const doc = "phantom checks for phantom types"
 
-var Analyzer = &analysis.Analyzer{
-	Name: "typeannotation",
+var AssignableAnalyzer = &analysis.Analyzer{
+	Name: "assignable",
 	Doc:  doc,
 	Run:  run,
 	Requires: []*analysis.Analyzer{

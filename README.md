@@ -1,9 +1,9 @@
-# typeannotation[![PkgGoDev](https://pkg.go.dev/badge/github.com/tenntenn/typeannotation)](https://pkg.go.dev/github.com/tenntenn/typeannotation)
+# phantom[![PkgGoDev](https://pkg.go.dev/badge/github.com/tenntenn/phantom)](https://pkg.go.dev/github.com/tenntenn/phantom)
 
 > [!WARNING]
-> **typeannotation is currently in experimental**. Breaking changes may occur.
+> **phantom is currently in experimental**. Breaking changes may occur.
 
-`typeannotation` checks assignabillity of type arguments of phantom type parameter with type alias as folowing codes.
+`phantom` checks assignabillity of type arguments of phantom type parameter with type alias as folowing codes.
 
 ```go
 type UUID[T any] = uuid.UUID
@@ -27,7 +27,7 @@ func run() error {
     var userID UUID[UserID]         // = ...
     var orgID UUID[OrganizationID]  // = ...
 
-    user, err := getUser(userID, orgID) // type checking does not report error but typeannotation reports error
+    user, err := getUser(userID, orgID) // type checking does not report error but phantom reports error
     // ...
 }
 ```
