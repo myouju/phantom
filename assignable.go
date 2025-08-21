@@ -103,7 +103,25 @@ func run(pass *analysis.Pass) (any, error) {
 				return
 			}
 
-			if signature.Params().Len() == len(n.Args) {
+			paramsLen := signature.Params().Len()
+			argsLen := len(n.Args)
+
+			if signature.Variadic() {
+				// Check fixed parameters (exclude the variadic parameter)
+				for i := 0; i < paramsLen-1; i++ {
+					assignableTo(pass, n.Pos(), n.Args[i], signature.Params().At(i))
+				}
+				// Check variadic arguments against the variadic parameter's element type
+				if argsLen > paramsLen-1 {
+					variadicParam := signature.Params().At(paramsLen - 1)
+					if slice, ok := variadicParam.Type().(*types.Slice); ok {
+						elementType := slice.Elem()
+						for i := paramsLen - 1; i < argsLen; i++ {
+							assignableTo(pass, n.Pos(), n.Args[i], elementType)
+						}
+					}
+				}
+			} else {
 				for i := range len(n.Args) {
 					assignableTo(pass, n.Pos(), n.Args[i], signature.Params().At(i))
 				}
