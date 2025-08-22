@@ -1,4 +1,4 @@
-module github.com/tenntenn/phantom
+module github.com/myouju/phantom
 
 go 1.24.0
 

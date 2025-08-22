@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/tenntenn/phantom"
+	"github.com/myouju/phantom"
 	"golang.org/x/tools/go/analysis/unitchecker"
 )
 

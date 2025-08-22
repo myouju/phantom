@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/gostaticanalysis/testutil"
-	"github.com/tenntenn/phantom"
+	"github.com/myouju/phantom"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
