@@ -1,6 +1,10 @@
 package a
 
+import "fmt"
+
 type A[T any] = any
+
+func p[T any](_ ...A[T]) {}
 
 func f() {
 	var _ any = A[any](nil)                                             // OK
@@ -13,4 +17,9 @@ func f() {
 	*new(A[string]), *new(bool) = map[int]A[bool]{}[0]                  // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 	*new(A[string]), *new(bool) = any(nil).(A[bool])                    // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 	var _, _ A[string] = func() (_ A[string], _ A[bool]) { return }()   // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
+	fmt.Printf("I'm %s", "Gopher")                                      // OK
+	p[string]()                                                         // OK
+	p[any](A[bool](nil))                                                // OK
+	p[string](A[bool](nil))                                             // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
+	p[string](A[string](nil), A[bool](nil))                             // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 }
