@@ -152,6 +152,10 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 		typ2 = typ
 	}
 
+	if typ1 == nil || typ2 == nil {
+		return
+	}
+
 	if !types.AssignableTo(typ1, typ2) {
 		pass.Reportf(pos, "types are not assignable: %v to %v", typ1, typ2)
 	}
