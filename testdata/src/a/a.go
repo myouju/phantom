@@ -20,6 +20,23 @@ func f() {
 	fmt.Printf("I'm %s", "Gopher")                                      // OK
 	p[string]()                                                         // OK
 	p[any](A[bool](nil))                                                // OK
+	p[bool]([]A[bool]{A[bool](nil), A[bool](nil)}...)                   // OK
 	p[string](A[bool](nil))                                             // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 	p[string](A[string](nil), A[bool](nil))                             // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
+
+	// Test append function with slice expansion
+	slice1 := []A[string]{A[string](nil)}
+	slice2 := []A[string]{A[string](nil)}
+	slice3 := []A[bool]{A[bool](nil)}
+	_ = append(slice1, slice2...) // OK - same types
+	_ = append(slice1, slice3...) // want `type annotations are not assignable: \[\]a\.A\[bool\] to \[\]a\.A\[string\]`
+
+	// Test with bob.Mod types like in zoo project
+	type Mod[T any] interface{ Apply(T) }
+	type SelectQuery struct{}
+
+	buildMods := func() []Mod[*SelectQuery] { return nil }
+	mods := []Mod[*SelectQuery]{}
+	filterMods := buildMods()
+	_ = append(mods, filterMods...) // OK
 }
