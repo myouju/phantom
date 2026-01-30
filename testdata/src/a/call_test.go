@@ -5,11 +5,11 @@ func callTests() {
 	func(A[string]) {}(A[bool](nil)) // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 
 	// Variadic function calls
-	p[string]()                                                       // OK
-	p[any](A[bool](nil))                                              // OK
-	p[bool]([]A[bool]{A[bool](nil), A[bool](nil)}...)                 // OK
-	p[string](A[bool](nil))                                           // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
-	p[string](A[string](nil), A[bool](nil))                           // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
+	p[string]()                                       // OK
+	p[any](A[bool](nil))                              // OK
+	p[bool]([]A[bool]{A[bool](nil), A[bool](nil)}...) // OK
+	p[string](A[bool](nil))                           // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
+	p[string](A[string](nil), A[bool](nil))           // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 
 	// Append with slice expansion
 	slice1 := []A[string]{A[string](nil)}
@@ -30,6 +30,10 @@ func callTests() {
 	c := C{caller: b{}}
 	c.caller.M(A[A[bool]](nil))   // want `type annotations are not assignable: a\.A\[a\.A\[bool\]\] to a\.A\[a\.A\[string\]\]`
 	c.caller.M(A[A[string]](nil)) // OK
+
+	c2 := C{caller: invalidB{}}    // want `invalidB does not implement a\.B \(wrong type for method M\)`
+	c2.caller.M(A[A[bool]](nil))   // want `type annotations are not assignable: a\.A\[a\.A\[bool\]\] to a\.A\[a\.A\[string\]\]`
+	c2.caller.M(A[A[string]](nil)) // OK
 
 	// defer/go statement function calls
 	defer func(_ A[string]) {}(A[bool](nil)) // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`

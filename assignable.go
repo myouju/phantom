@@ -376,6 +376,47 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 			}
 		}
 	}
+
+	// Check interface satisfaction for phantom type mismatches
+	ifaceType, ok := typ2.Underlying().(*types.Interface)
+	if !ok {
+		return
+	}
+	mset := types.NewMethodSet(typ1)
+	for i := range ifaceType.NumMethods() {
+		ifaceMethod := ifaceType.Method(i)
+		ifaceSig, ok := ifaceMethod.Type().(*types.Signature)
+		if !ok {
+			continue
+		}
+		sel := mset.Lookup(ifaceMethod.Pkg(), ifaceMethod.Name())
+		if sel == nil {
+			continue
+		}
+		concreteSig, ok := sel.Type().(*types.Signature)
+		if !ok {
+			continue
+		}
+		if !signaturesPhantomMatch(ifaceSig, concreteSig) {
+			pass.Reportf(pos, "%v does not implement %v (wrong type for method %s)", typ1, typ2, ifaceMethod.Name())
+			return
+		}
+	}
+}
+
+// signaturesPhantomMatch checks if two method signatures match with respect to phantom types.
+func signaturesPhantomMatch(iface, concrete *types.Signature) bool {
+	for i := range iface.Params().Len() {
+		if !phantomAssignable(concrete.Params().At(i).Type(), iface.Params().At(i).Type()) {
+			return false
+		}
+	}
+	for i := range iface.Results().Len() {
+		if !phantomAssignable(concrete.Results().At(i).Type(), iface.Results().At(i).Type()) {
+			return false
+		}
+	}
+	return true
 }
 
 // phantomAssignable checks whether t1 is assignable to t2, including

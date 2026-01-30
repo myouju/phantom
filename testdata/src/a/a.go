@@ -12,6 +12,10 @@ type b struct{}
 
 func (b) M(_ A[A[string]]) {}
 
+type invalidB struct{}
+
+func (invalidB) M(_ A[A[bool]]) {}
+
 type C struct {
 	caller B
 }
