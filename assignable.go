@@ -33,6 +33,30 @@ func run(pass *analysis.Pass) (any, error) {
 		(*ast.FuncDecl)(nil),
 		(*ast.FuncLit)(nil),
 		(*ast.ReturnStmt)(nil),
+		(*ast.SendStmt)(nil),
+		(*ast.BinaryExpr)(nil),
+		(*ast.IndexExpr)(nil),
+	}
+
+	// Check package-level variable declarations
+	for _, file := range pass.Files {
+		for _, decl := range file.Decls {
+			gendecl, ok := decl.(*ast.GenDecl)
+			if !ok || gendecl.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gendecl.Specs {
+				valuespec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				if len(valuespec.Names) == len(valuespec.Values) {
+					for i := range len(valuespec.Names) {
+						assignableTo(pass, valuespec.Pos(), valuespec.Values[i], valuespec.Names[i])
+					}
+				}
+			}
+		}
 	}
 
 	var funcStack []*types.Signature
@@ -142,29 +166,93 @@ func run(pass *analysis.Pass) (any, error) {
 
 			}
 		case *ast.CompositeLit:
-			structType, ok := pass.TypesInfo.TypeOf(n).Underlying().(*types.Struct)
+			litType := pass.TypesInfo.TypeOf(n)
+			if litType == nil {
+				return true
+			}
+			switch u := litType.Underlying().(type) {
+			case *types.Struct:
+				for i, elt := range n.Elts {
+					if kv, ok := elt.(*ast.KeyValueExpr); ok {
+						ident, ok := kv.Key.(*ast.Ident)
+						if !ok {
+							continue
+						}
+						for j := range u.NumFields() {
+							field := u.Field(j)
+							if field.Name() == ident.Name {
+								assignableTo(pass, kv.Pos(), kv.Value, field)
+								break
+							}
+						}
+					} else if i < u.NumFields() {
+						assignableTo(pass, elt.Pos(), elt, u.Field(i))
+					}
+				}
+			case *types.Slice:
+				elemType := u.Elem()
+				for _, elt := range n.Elts {
+					if kv, ok := elt.(*ast.KeyValueExpr); ok {
+						assignableTo(pass, kv.Pos(), kv.Value, elemType)
+					} else {
+						assignableTo(pass, elt.Pos(), elt, elemType)
+					}
+				}
+			case *types.Array:
+				elemType := u.Elem()
+				for _, elt := range n.Elts {
+					if kv, ok := elt.(*ast.KeyValueExpr); ok {
+						assignableTo(pass, kv.Pos(), kv.Value, elemType)
+					} else {
+						assignableTo(pass, elt.Pos(), elt, elemType)
+					}
+				}
+			case *types.Map:
+				keyType := u.Key()
+				elemType := u.Elem()
+				for _, elt := range n.Elts {
+					kv, ok := elt.(*ast.KeyValueExpr)
+					if !ok {
+						continue
+					}
+					assignableTo(pass, kv.Pos(), kv.Key, keyType)
+					assignableTo(pass, kv.Pos(), kv.Value, elemType)
+				}
+			}
+		case *ast.SendStmt:
+			chanType, ok := pass.TypesInfo.TypeOf(n.Chan).Underlying().(*types.Chan)
 			if !ok {
 				return true
 			}
-
-			for _, elt := range n.Elts {
-				kv, ok := elt.(*ast.KeyValueExpr)
-				if !ok {
-					continue
-				}
-				ident, ok := kv.Key.(*ast.Ident)
-				if !ok {
-					continue
-				}
-				for i := range structType.NumFields() {
-					field := structType.Field(i)
-					if field.Name() == ident.Name {
-						assignableTo(pass, kv.Pos(), kv.Value, field)
-						break
+			assignableTo(pass, n.Arrow, n.Value, chanType.Elem())
+		case *ast.BinaryExpr:
+			if n.Op == token.EQL || n.Op == token.NEQ {
+				assignableTo(pass, n.OpPos, n.Y, n.X)
+			}
+		case *ast.IndexExpr:
+			// Check map key type on map index access
+			mapType, ok := pass.TypesInfo.TypeOf(n.X).Underlying().(*types.Map)
+			if !ok {
+				return true
+			}
+			assignableTo(pass, n.Lbrack, n.Index, mapType.Key())
+		case *ast.CallExpr:
+			// Handle builtin functions whose parameters are instantiated per-call
+			if ident, ok := n.Fun.(*ast.Ident); ok {
+				obj := pass.TypesInfo.ObjectOf(ident)
+				if obj != nil {
+					if builtin, ok := obj.(*types.Builtin); ok {
+						switch builtin.Name() {
+						case "copy":
+							if len(n.Args) == 2 {
+								assignableTo(pass, n.Pos(), n.Args[1], n.Args[0])
+							}
+							return true
+						}
 					}
 				}
 			}
-		case *ast.CallExpr:
+
 			signature, ok := pass.TypesInfo.TypeOf(n.Fun).(*types.Signature)
 			if !ok {
 				return true
