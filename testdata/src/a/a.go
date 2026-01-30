@@ -13,6 +13,7 @@ type B interface {
 type b struct{}
 
 func (b) M(_ A[A[string]]) {}
+func (b) N() A[string]     { return A[bool](nil) } // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 
 type C struct {
 	caller B

@@ -30,10 +30,53 @@ func run(pass *analysis.Pass) (any, error) {
 		(*ast.DeclStmt)(nil),
 		(*ast.CallExpr)(nil),
 		(*ast.CompositeLit)(nil),
+		(*ast.FuncDecl)(nil),
+		(*ast.FuncLit)(nil),
+		(*ast.ReturnStmt)(nil),
 	}
 
-	inspect.Preorder(nodeFilter, func(n ast.Node) {
+	var funcStack []*types.Signature
+
+	inspect.Nodes(nodeFilter, func(n ast.Node, push bool) bool {
+		if !push {
+			switch n.(type) {
+			case *ast.FuncDecl, *ast.FuncLit:
+				funcStack = funcStack[:len(funcStack)-1]
+			}
+			return true
+		}
+
 		switch n := n.(type) {
+		case *ast.FuncDecl:
+			obj := pass.TypesInfo.ObjectOf(n.Name)
+			if obj == nil {
+				return true
+			}
+			sig, ok := obj.Type().(*types.Signature)
+			if !ok {
+				return true
+			}
+			funcStack = append(funcStack, sig)
+			return true
+		case *ast.FuncLit:
+			sig, ok := pass.TypesInfo.TypeOf(n).(*types.Signature)
+			if !ok {
+				return true
+			}
+			funcStack = append(funcStack, sig)
+			return true
+		case *ast.ReturnStmt:
+			if len(funcStack) == 0 || len(n.Results) == 0 {
+				return true
+			}
+			sig := funcStack[len(funcStack)-1]
+			results := sig.Results()
+			if results.Len() == len(n.Results) {
+				for i, expr := range n.Results {
+					assignableTo(pass, expr.Pos(), expr, results.At(i))
+				}
+			}
+			return true
 		case *ast.AssignStmt:
 			switch {
 			case len(n.Lhs) == len(n.Rhs):
@@ -45,7 +88,7 @@ func run(pass *analysis.Pass) (any, error) {
 				case *ast.CallExpr:
 					signature, ok := pass.TypesInfo.TypeOf(expr.Fun).(*types.Signature)
 					if !ok {
-						return
+						return true
 					}
 
 					if signature.Results().Len() == len(n.Lhs) {
@@ -67,7 +110,7 @@ func run(pass *analysis.Pass) (any, error) {
 		case *ast.DeclStmt:
 			gendecl, ok := n.Decl.(*ast.GenDecl)
 			if !ok || gendecl.Tok != token.VAR {
-				return
+				return true
 			}
 
 			for _, spec := range gendecl.Specs {
@@ -86,7 +129,7 @@ func run(pass *analysis.Pass) (any, error) {
 					case *ast.CallExpr:
 						signature, ok := pass.TypesInfo.TypeOf(expr.Fun).(*types.Signature)
 						if !ok {
-							return
+							return true
 						}
 
 						if signature.Results().Len() == len(valuespec.Names) {
@@ -101,7 +144,7 @@ func run(pass *analysis.Pass) (any, error) {
 		case *ast.CompositeLit:
 			structType, ok := pass.TypesInfo.TypeOf(n).Underlying().(*types.Struct)
 			if !ok {
-				return
+				return true
 			}
 
 			for _, elt := range n.Elts {
@@ -124,7 +167,7 @@ func run(pass *analysis.Pass) (any, error) {
 		case *ast.CallExpr:
 			signature, ok := pass.TypesInfo.TypeOf(n.Fun).(*types.Signature)
 			if !ok {
-				return
+				return true
 			}
 
 			paramsLen := signature.Params().Len()
@@ -162,6 +205,7 @@ func run(pass *analysis.Pass) (any, error) {
 				}
 			}
 		}
+		return true
 	})
 
 	return nil, nil
