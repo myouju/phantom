@@ -29,6 +29,7 @@ func run(pass *analysis.Pass) (any, error) {
 		(*ast.AssignStmt)(nil),
 		(*ast.DeclStmt)(nil),
 		(*ast.CallExpr)(nil),
+		(*ast.CompositeLit)(nil),
 	}
 
 	inspect.Preorder(nodeFilter, func(n ast.Node) {
@@ -96,6 +97,29 @@ func run(pass *analysis.Pass) (any, error) {
 					}
 				}
 
+			}
+		case *ast.CompositeLit:
+			structType, ok := pass.TypesInfo.TypeOf(n).Underlying().(*types.Struct)
+			if !ok {
+				return
+			}
+
+			for _, elt := range n.Elts {
+				kv, ok := elt.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				ident, ok := kv.Key.(*ast.Ident)
+				if !ok {
+					continue
+				}
+				for i := range structType.NumFields() {
+					field := structType.Field(i)
+					if field.Name() == ident.Name {
+						assignableTo(pass, kv.Pos(), kv.Value, field)
+						break
+					}
+				}
 			}
 		case *ast.CallExpr:
 			signature, ok := pass.TypesInfo.TypeOf(n.Fun).(*types.Signature)
@@ -180,7 +204,7 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 			args2 := alias2.TypeArgs()
 			if args1.Len() > 0 && args2.Len() > 0 && args1.Len() == args2.Len() {
 				for i := range args1.Len() {
-					if !types.AssignableTo(args1.At(i), args2.At(i)) {
+					if !phantomAssignable(args1.At(i), args2.At(i)) {
 						pass.Reportf(pos, "type annotations are not assignable: %v to %v", typ1, typ2)
 					}
 				}
@@ -201,7 +225,7 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 				args2 := elem2.TypeArgs()
 				if args1.Len() > 0 && args2.Len() > 0 && args1.Len() == args2.Len() {
 					for i := range args1.Len() {
-						if !types.AssignableTo(args1.At(i), args2.At(i)) {
+						if !phantomAssignable(args1.At(i), args2.At(i)) {
 							pass.Reportf(pos, "type annotations are not assignable: %v to %v", typ1, typ2)
 						}
 					}
@@ -209,4 +233,35 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 			}
 		}
 	}
+}
+
+// phantomAssignable checks whether t1 is assignable to t2, including
+// recursive comparison of phantom type arguments on alias types.
+func phantomAssignable(t1, t2 types.Type) bool {
+	if !types.AssignableTo(t1, t2) {
+		return false
+	}
+
+	a1, _ := t1.(*types.Alias)
+	a2, _ := t2.(*types.Alias)
+	if a1 == nil || a2 == nil {
+		return true
+	}
+
+	if !types.Identical(a1.Origin(), a2.Origin()) {
+		return true
+	}
+
+	args1 := a1.TypeArgs()
+	args2 := a2.TypeArgs()
+	if args1.Len() == 0 || args2.Len() == 0 || args1.Len() != args2.Len() {
+		return true
+	}
+
+	for i := range args1.Len() {
+		if !phantomAssignable(args1.At(i), args2.At(i)) {
+			return false
+		}
+	}
+	return true
 }

@@ -6,6 +6,22 @@ type A[T any] = any
 
 func p[T any](_ ...A[T]) {}
 
+type B interface {
+	M(A[A[string]])
+}
+
+type b struct{}
+
+func (b) M(_ A[A[string]]) {}
+
+type C struct {
+	caller B
+}
+
+type D struct {
+	field A[string]
+}
+
 func f() {
 	var _ any = A[any](nil)                                             // OK
 	var _ A[any] = 100                                                  // OK
@@ -39,4 +55,11 @@ func f() {
 	mods := []Mod[*SelectQuery]{}
 	filterMods := buildMods()
 	_ = append(mods, filterMods...) // OK
+
+	c := C{caller: b{}}
+	c.caller.M(A[A[bool]](nil))   // want `type annotations are not assignable: a\.A\[a\.A\[bool\]\] to a\.A\[a\.A\[string\]\]`
+	c.caller.M(A[A[string]](nil)) // OK
+
+	var _ D = D{field: A[bool](nil)}   // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
+	var _ D = D{field: A[string](nil)} // OK
 }
