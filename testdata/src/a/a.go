@@ -23,3 +23,20 @@ type C struct {
 type D struct {
 	field A[string]
 }
+
+// Option is a generic named type for testing phantom type checking through generic wrappers.
+type Option[T any] struct {
+	value *T
+}
+
+type Writer interface {
+	Write(v Option[A[string]]) error
+}
+
+type goodWriter struct{}
+
+func (goodWriter) Write(_ Option[A[string]]) error { return nil }
+
+type badWriter struct{}
+
+func (badWriter) Write(_ Option[A[bool]]) error { return nil }

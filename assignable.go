@@ -338,43 +338,8 @@ func assignableTo(pass *analysis.Pass, pos token.Pos, val, typ any) {
 		pass.Reportf(pos, "types are not assignable: %v to %v", typ1, typ2)
 	}
 
-	// Check direct alias types
-	alias1, _ := typ1.(*types.Alias)
-	alias2, _ := typ2.(*types.Alias)
-	if alias1 != nil && alias2 != nil {
-		if types.Identical(alias1.Origin(), alias2.Origin()) {
-			args1 := alias1.TypeArgs()
-			args2 := alias2.TypeArgs()
-			if args1.Len() > 0 && args2.Len() > 0 && args1.Len() == args2.Len() {
-				for i := range args1.Len() {
-					if !phantomAssignable(args1.At(i), args2.At(i)) {
-						pass.Reportf(pos, "type annotations are not assignable: %v to %v", typ1, typ2)
-					}
-				}
-			}
-		}
-		return
-	}
-
-	// Check slice types with alias element types
-	slice1, ok1 := typ1.(*types.Slice)
-	slice2, ok2 := typ2.(*types.Slice)
-	if ok1 && ok2 {
-		elem1, isAlias1 := slice1.Elem().(*types.Alias)
-		elem2, isAlias2 := slice2.Elem().(*types.Alias)
-		if isAlias1 && isAlias2 {
-			if types.Identical(elem1.Origin(), elem2.Origin()) {
-				args1 := elem1.TypeArgs()
-				args2 := elem2.TypeArgs()
-				if args1.Len() > 0 && args2.Len() > 0 && args1.Len() == args2.Len() {
-					for i := range args1.Len() {
-						if !phantomAssignable(args1.At(i), args2.At(i)) {
-							pass.Reportf(pos, "type annotations are not assignable: %v to %v", typ1, typ2)
-						}
-					}
-				}
-			}
-		}
+	if !phantomAssignable(typ1, typ2) {
+		pass.Reportf(pos, "type annotations are not assignable: %v to %v", typ1, typ2)
 	}
 
 	// Check interface satisfaction for phantom type mismatches
@@ -419,33 +384,51 @@ func signaturesPhantomMatch(iface, concrete *types.Signature) bool {
 	return true
 }
 
+// typeArgs extracts type arguments from alias or named generic types.
+// Returns nil if the type has no type arguments.
+func typeArgs(t types.Type) (origin types.Type, args *types.TypeList) {
+	switch t := t.(type) {
+	case *types.Alias:
+		if ta := t.TypeArgs(); ta != nil && ta.Len() > 0 {
+			return t.Origin(), ta
+		}
+	case *types.Named:
+		if ta := t.TypeArgs(); ta != nil && ta.Len() > 0 {
+			return t.Origin(), ta
+		}
+	}
+	return nil, nil
+}
+
 // phantomAssignable checks whether t1 is assignable to t2, including
-// recursive comparison of phantom type arguments on alias types.
+// recursive comparison of phantom type arguments on alias and named generic types.
 func phantomAssignable(t1, t2 types.Type) bool {
 	if !types.AssignableTo(t1, t2) {
 		return false
 	}
 
-	a1, _ := t1.(*types.Alias)
-	a2, _ := t2.(*types.Alias)
-	if a1 == nil || a2 == nil {
-		return true
-	}
-
-	if !types.Identical(a1.Origin(), a2.Origin()) {
-		return true
-	}
-
-	args1 := a1.TypeArgs()
-	args2 := a2.TypeArgs()
-	if args1.Len() == 0 || args2.Len() == 0 || args1.Len() != args2.Len() {
-		return true
-	}
-
-	for i := range args1.Len() {
-		if !phantomAssignable(args1.At(i), args2.At(i)) {
-			return false
+	// Check alias and named generic types
+	origin1, args1 := typeArgs(t1)
+	origin2, args2 := typeArgs(t2)
+	if origin1 != nil && origin2 != nil {
+		if types.Identical(origin1, origin2) {
+			if args1.Len() == args2.Len() {
+				for i := range args1.Len() {
+					if !phantomAssignable(args1.At(i), args2.At(i)) {
+						return false
+					}
+				}
+			}
 		}
+		return true
 	}
+
+	// Check slice types with generic element types
+	slice1, ok1 := t1.(*types.Slice)
+	slice2, ok2 := t2.(*types.Slice)
+	if ok1 && ok2 {
+		return phantomAssignable(slice1.Elem(), slice2.Elem())
+	}
+
 	return true
 }
