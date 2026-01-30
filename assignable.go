@@ -36,6 +36,7 @@ func run(pass *analysis.Pass) (any, error) {
 		(*ast.SendStmt)(nil),
 		(*ast.BinaryExpr)(nil),
 		(*ast.IndexExpr)(nil),
+		(*ast.SwitchStmt)(nil),
 	}
 
 	// Check package-level variable declarations
@@ -236,6 +237,16 @@ func run(pass *analysis.Pass) (any, error) {
 				return true
 			}
 			assignableTo(pass, n.Lbrack, n.Index, mapType.Key())
+		case *ast.SwitchStmt:
+			if n.Tag != nil {
+				for _, stmt := range n.Body.List {
+					if cc, ok := stmt.(*ast.CaseClause); ok {
+						for _, expr := range cc.List {
+							assignableTo(pass, expr.Pos(), expr, n.Tag)
+						}
+					}
+				}
+			}
 		case *ast.CallExpr:
 			// Handle builtin functions whose parameters are instantiated per-call
 			if ident, ok := n.Fun.(*ast.Ident); ok {
