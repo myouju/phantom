@@ -1,6 +1,6 @@
 module github.com/myouju/phantom
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/gostaticanalysis/testutil v0.5.2
