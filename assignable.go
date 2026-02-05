@@ -171,7 +171,12 @@ func run(pass *analysis.Pass) (any, error) {
 			if litType == nil {
 				return true
 			}
-			switch u := litType.Underlying().(type) {
+			// Handle pointer to struct (e.g., implicit &T{} in []*T{{...}})
+			underlyingType := litType.Underlying()
+			if ptr, ok := underlyingType.(*types.Pointer); ok {
+				underlyingType = ptr.Elem().Underlying()
+			}
+			switch u := underlyingType.(type) {
 			case *types.Struct:
 				for i, elt := range n.Elts {
 					if kv, ok := elt.(*ast.KeyValueExpr); ok {
@@ -282,7 +287,7 @@ func run(pass *analysis.Pass) (any, error) {
 					variadicParam := signature.Params().At(paramsLen - 1)
 					if slice, ok := variadicParam.Type().(*types.Slice); ok {
 						elementType := slice.Elem()
-						
+
 						// Check if the call uses slice expansion (...)
 						if n.Ellipsis.IsValid() {
 							// Handle slice expansion: the last argument should be assignable to []T

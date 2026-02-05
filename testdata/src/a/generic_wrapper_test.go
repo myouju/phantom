@@ -6,7 +6,7 @@ func genericWrapperTests() {
 	var _ Option[A[string]] = Option[A[string]]{} // OK
 
 	// Function call with generic wrapper
-	func(_ Option[A[string]]) {}(Option[A[bool]]{}) // want `type annotations are not assignable: a\.Option\[a\.A\[bool\]\] to a\.Option\[a\.A\[string\]\]`
+	func(_ Option[A[string]]) {}(Option[A[bool]]{})   // want `type annotations are not assignable: a\.Option\[a\.A\[bool\]\] to a\.Option\[a\.A\[string\]\]`
 	func(_ Option[A[string]]) {}(Option[A[string]]{}) // OK
 
 	// Interface satisfaction with generic wrapper

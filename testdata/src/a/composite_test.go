@@ -11,7 +11,7 @@ func compositeTests() {
 
 	// Slice literal
 	var _ []A[string] = []A[string]{A[bool](nil)}   // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
-	var _ []A[string] = []A[string]{A[string](nil)}  // OK
+	var _ []A[string] = []A[string]{A[string](nil)} // OK
 
 	// Array literal
 	var _ [1]A[string] = [1]A[string]{A[bool](nil)}   // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
@@ -32,4 +32,33 @@ func compositeTests() {
 	}
 	var _ E = E{items: []A[string]{A[bool](nil)}}   // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 	var _ E = E{items: []A[string]{A[string](nil)}} // OK
+
+	// Implicit struct literal in slice (like []*CrmUser{{Guid: ...}})
+	type User struct{}
+	type Admin struct{}
+	type GUID[T any] = string
+	type F struct {
+		Guid GUID[User]
+	}
+
+	// Test 1: Non-pointer slice with implicit struct literal
+	var _ []F = []F{
+		{
+			Guid: GUID[Admin]("test"), // want `type annotations are not assignable: a\.GUID\[a\.Admin\] to a\.GUID\[a\.User\]`
+		},
+	}
+
+	// Test 2: Pointer slice with implicit struct literal
+	var _ []*F = []*F{
+		{
+			Guid: GUID[Admin]("test"), // want `type annotations are not assignable: a\.GUID\[a\.Admin\] to a\.GUID\[a\.User\]`
+		},
+	}
+
+	// Test 3: Explicit struct literal (should work)
+	var _ []F = []F{
+		F{
+			Guid: GUID[Admin]("test"), // want `type annotations are not assignable: a\.GUID\[a\.Admin\] to a\.GUID\[a\.User\]`
+		},
+	}
 }

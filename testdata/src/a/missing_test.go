@@ -8,7 +8,7 @@ func missingTests() {
 
 	switch tag {
 	case valString: // OK
-	case valBool:   // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
+	case valBool: // want `type annotations are not assignable: a\.A\[bool\] to a\.A\[string\]`
 	}
 
 	// Channel receive assignment
